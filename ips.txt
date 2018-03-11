@@ -1,0 +1,5 @@
+# This is an example file for the f-response_machine_loop.pl.
+#
+# Enter one IP address per line
+#
+127.0.0.1

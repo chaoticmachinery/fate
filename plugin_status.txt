@@ -1,0 +1,11 @@
+Notes on the current status of Plugins.
+
+Date: 09/6/2012
+
+dllcache = done
+fls = done
+log2timeline = done
+mft2 = needs work
+regprocess = done
+setupapilog = done
+strings_pagefile = done

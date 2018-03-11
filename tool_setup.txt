@@ -1,0 +1,522 @@
+===========================================================================
+= Welcome								  =
+===========================================================================
+
+What is this?
+The primary purpose of this software is to automate some of the forensics tasks we do on every case. In a nutshell, I wanted to have something image, check my image, mount, and run various tools automatically so that I could be doing other things. This way I could kick off the tool, go back to work on other pressing issues, or if I kick it off before I went home for the day, I could come in the next day and start analyzing the results.
+
+What it does...
+This tool will:
+1) image the drive
+2) check the hashes of the original vs. imaged copy
+If configured to proceed, using the imaged copy:
+1) Figure out which partition is the <Windows Root>
+2) Mount <Windows Root> in as read only
+3) Start running various plugins to gather forensics data
+
+After each step the tool will send you an email with an update on the status for each step/plugin it has ran. After all plugins have ran, it will send a final email letting you know it has completed the activities requested.
+
+Lastly, in order to speed up processing times, the tool is set to be multithread when running plugins. 
+
+===========================================================================
+= Plugins								  =
+===========================================================================
+Each plugin runs a tool or a set of tools to give forensic output in a given area. In addition, each plugin can be run separately, if needed.
+
+To run a plugin separately use:
+{plugin.pl} --mntdrive {where the image is mounted to}
+
+
+Descriptions of current plugins
+
+DLLCACHE
+Summary: Compare MD5 hashes of files found in DLLCache to those files found in the system32 directory to find files with different MD5 hashes
+
+This plugin will search the partition for the DLLCache directory. Once found it will create MD5 hashes of all of the files listed in the DLLCache directory. Then it will search for system32 directory, and compare the MD5 hashes it create from the DLLCache directory to those files with the same name in the system32 directory.
+
+FLS
+Summary: Runs FLS to produce a file details in long format and mactime format
+
+Log2Timeline
+Summary: Runs log2timeline in a detail module format
+
+This plugin will try to determine the Windows OS version. Then it will run the appropriate module. Only win7, Winsrv, and winxp is supported. Please note that this plugin takes the longest to run.
+
+NOTE: This plugin will hang the entire process if there is output files in the log2timeline directory.
+
+
+MFT
+Summary: Harlan Carvey's MFT2.pl turned into a plugin
+
+Note: May not work on OSX.
+
+Regprocess
+Summary: Just about the everything and kitchen sink ran against the registry (also includes Restore Points)
+
+Regprocess will search the partition for hive files and then run the following on each file:
+RegRipper
+RipXP (Restore Points)
+RegTime (outputs in long detail and machine time formats)
+Regdump (Dumps the entire hive to text for easy parsing)
+Regscan (Dumps the slack space found in the registry to text)
+
+In addition, it will make a copy of each hive file it finds and put it in the output directory. It does this by creating the directory path to the where it found the hive and then copies the hive there. Then it creates a soft link from the regprocess output directory to the copy it just made. The soft link filename will have = to replace any / or \ characters and _ to replace spaces. These copies were made for easy look up later.
+
+See the README.TXT for additional details on the output of the plugin.
+
+SetupAPILogs
+Summary: Searches for the setupapi.log, setupapi.app.log, setupapi.dev.log, setupapi.offline.log, setupact.log, and setuperr.log. Then copies the files out to the output directory.
+
+Strings_pagefile.pl
+Summary: Searches the partition for the pagefile. Once found, it will gather the ASCII and UNICODE strings.
+
+
+Sample
+Summary: Just a sample plugin to be used as a template for plugin creation
+
+===========================================================================
+= Running Plugin Processor						  =
+===========================================================================
+To run the plugin processor and all plugins listed use:
+/process.pl --mntdrive {path to the mounted partition}
+
+
+
+
+===========================================================================
+= Configuration								  =
+===========================================================================
+
+Main Configuration
+Under the main directory there is a file called config.ini. This is the main configuration file for the imaging perl script, automatic mount perl script, email notifications, and the plugin processer perl script. Each option has an explanation to it. 
+
+Plugin Configuration
+In the plugins directory, there is a plugins.ini file. This file contains all of the various options for each of the plugins. If you download a new plugin or create your own, any options have to be listed in this file. 
+
+Each plugin has its own section. The [default] section is used for those configuration options that more than one plugin will use. For example, under the default section there is a option that looks like this: timezone=UTC. This means that any plugin that has a timezone option, will use UTC as the timezone. 
+
+Some default options for each plugin configuration
+
+Savedir = The savedir options under each section is where the plugin will output its data. Each plugin is configured to create the directory if it does not already exist.
+thread = This saved for future versions of the tool
+
+Lastly, the plugins.ini file contains the locations for each of the tools the plugins. If your path to tools do not match the defaults, then you need to change those lines.
+
+
+
+===========================================================================
+= Setup									  =
+===========================================================================
+Before anything is downloaded and compile, please pick a central directory to work from. For example, if you have a data drive mounted to /export/sdc1, create a directory called source. Then cd into /export/sdc1/source. From here on out this is where you will download each file, uncompress, and unarchive it.
+
+OSX Steps
+1) Install Xcode
+2) Install Fuse4x
+2a) Download latest version of Fuse4x at HTTP://fuse4x.github.com/
+2b) Install it
+3) OSX Brews
+Note: In order to use Brew you cannot be root and it is done on the command line
+3a) Install Brew (HTTP://mxcl.github.com/homebrew/)
+3b) brew install libxml2
+3c) brew install md5sha1sum
+3d) brew install md5deep (Not need but good to have)
+3e) brew install yaml
+3f) brew install sqlite
+3g) brew install wget
+3h) brew install dos2unix
+
+
+Linux Steps
+Note: I am assuming your Linux distro is Fedora/CentOS/Redhat based.
+1) Install Fuse
+1a) yum install afuse fuse fuse-devel fuse-python fuse-smb fuse-sshfs fuse-zip fusecompress fuseiso fuse-encfs fuse-exfat
+
+
+
+===========================================================================
+= Software Requirements							  =
+===========================================================================
+Pick a location on your hard drive to download and install the software from. For my purposes, I have decided to use a directory call /appl. Also, it is a good idea to keep the source code you have
+download. You may need it one day for redo some forensics on a case or even to reinstall.
+
+NOTE: You will need to install the software below in the order it was written.
+NOTE: Pay attention to filenames as you are downloading them. Sometimes the names will be longer and may not reflect exactly the names I have listed in the "tar zxvf" commands.
+
+Create your work/installation directory
+1) mkdir /appl
+
+
+EWF 20100226
+Note: We compile the 20100226 for the sleuthkit. Later we will compile the latest version to be able to mount ewf images.
+1) wget HTTP://downloads.sourceforge.net/project/libewf/libewf/libewf-20100226/libewf-20100226.tar.gz?r=http%3A%2F%2Fsourceforge.net%2Fprojects%2Flibewf%2Ffiles%2Flibewf%2Flibewf-20100226%2F&ts=1346950170&use_mirror=superb-sea2
+2) tar zxvf  libewf-20100226.tar.gz
+3) cd libewf-20100226
+4) ./configure --enable-wide-character-type --enable-static-executables  --enable-python
+5) make && make install
+
+AFFLIB
+1) it clone git://github.com/simsong/AFFLIBv3.git
+2) cd AFFLIBv3
+3) ./bootstrap.sh
+4) ./configure --enable-python=yes --enable-threading  --enable-fuse=yes
+5) make && make install
+
+SLEUTHKIT
+1) wget http://sourceforge.net/projects/sleuthkit/files/latest/download?source=files
+2) tar zxvf  sleuthkit-3.2.3.tar.gz
+3) cd sleuthkit-3.2.3
+4) ./configure  --with-afflib --with-libewf
+5) make && make install
+
+Pasco2
+1) mkdir pasco2-0.1
+Note: Make a directory where you want it installed at. There is not installation program for Pasco2.
+2) cd  pasco2-0.1
+3) wget http://downloads.sourceforge.net/project/pasco2/pasco2/pasco2-0.1.zip/pasco2-0.1.zip?r=http%3A%2F%2Fsourceforge.net%2Fprojects%2Fpasco2%2F&ts=1346951865&use_mirror=superb-sea2
+4) unzip pasco2-0.1.zip
+
+
+GSTREAMER (Linux)
+1) yum install  gstreamer gstreamer-devel gstreamer-plugins-bad gstreamer-plugins-bad-free gstreamer-plugins-bad-free-devel gstreamer-plugins-bad-free-extras gstreamer-plugins-bad-nonfree  gstreamer-plugins-base  gstreamer-plugins-base-devel gstreamer-plugins-good  gstreamer-plugins-good-extras gstreamer-plugins-ugly gstreamer-python  gstreamer-python-devel gstreamer-tools                                           
+
+GSTREAMER (OSX)
+1) Download and install Runtime version of GStreamer from http://docs.gstreamer.com/display/GstSDK/Installing+on+Mac+OS+X
+
+
+EWF Latest Version
+1) wget http://libewf.googlecode.com/files/libewf-experimental-20120809.tar.gz  
+2) tar zxvf  libewf-20120813.tar.gz
+3) cd libewf-20120813
+4) ./configure --enable-wide-character-type --enable-static-executables  --enable-python
+ ./configure --enable-wide-character-type --enable-static-executables  --enable-python  --enable-v1-api    --enable-verbose-output
+5) make && make install
+
+LIB (LINUX Only) 
+Note: This makes sure Linux knows about the new libraries you have added so far.
+1) ldconfig
+
+PERL MODULES
+1) cpan Parse::Win32Registry
+2) cpan Gtk2
+3) cpan Benchmark
+4) cpan Config::Tiny
+5) cpan Digest::MD5 
+6) cpan Encode
+7) cpan Getopt::Long
+8) cpan Net::SMTP
+9) cpan Net::SMTP::TLS
+10) cpan Pod::Usage
+11) cpan Switch
+12) cpan Carp::Assert
+13) cpan Data::Hexify
+14) cpan Date::Manip
+15) cpan DateTime
+16) cpan DateTime::Format::Strptime
+17) cpan DateTime::TimeZone
+18) cpan File::Mork
+19) cpan HTML::Scrubber
+20) cpan Image::ExifTool
+21) cpan Mac::PropertyList
+22) Install Net::Pcap via directions below 
+22a) cpan
+22b) notest install Net::Pcap
+22c) exit
+23) cpan NetPacket::Ethernet
+24) cpan NetPacket::IP
+25) cpan NetPacket::TCP
+26) cpan NetPacket::UDP
+27) cpan Params::Validate
+28) cpan DateTime::Format::WindowsFileTime
+29) cpan XML::LibXML
+30) cpan XML::LibXML::Common
+31) cpan Archive::Zip
+32) cpan Digest::CRC
+33) cpan DBI
+34) cpan HTML::Parser
+35) cpan Carp::Assert
+36) cpan version
+37) cpan Params::Validate
+38) cpan DBD::SQLite
+
+
+
+Log2Timeline
+1) wget http://log2timeline.net/files/log2timeline_0.63.tgz
+2) cd log2timeline
+3) perl Makefile.PL
+4) make && make install
+
+
+RegRipper
+1) mkdir regripper
+2) cd regripper
+3) Download Regripper http://code.google.com/p/winforensicaanalysis/downloads/list
+4) unzip rrv2.5.zip
+5) mkdir wfa3e
+6) cd wfa3e
+7) Download wfa3e.zip from http://code.google.com/p/winforensicaanalysis/downloads/list
+8) unzip wfa3e.zip
+9) cp ch5/RegRipper/ripxp.pl ../
+10) cp ch7/tln_tools/regtime.pl ../
+11) cd ../
+12) Download the plugins from http://code.google.com/p/regripperplugins/downloads/list
+13) unzip regripperplugins_20120812.zip
+14) mv regripperplugins_20120812 plugins
+15) chmod 755 *.pl
+16) find . -exec dos2unix {} \;
+17) Figure out your path to perl
+17a) which perl
+18) Adjust the 1st line of each .pl file to point to the correct version of perl from 16a
+Change from this:
+#! c:\perl\bin\perl.exe
+
+To this (if the output from "which perl" shows it as this location)
+#!/usr/bin/perl
+19) Change line #118 from this 
+
+                        require "plugins\\".$plugins{$i}."\.pl";
+To this:
+
+                        require $plugindir.$plugins{$i}."\.pl";
+
+
+Regripper Part 2
+If you made this far, then we are almost done. 
+
+The next step is to generate the list of plugins we want to run on each of the hive types. Under the regripper plugins directory we need to create the following files followed by an explanation:
+all -- List of all of the available plugins
+ntuser -- List of the plugins to be ran against the ntuser hive
+sam -- List of the plugins to be ran against the sam hive
+security -- List of the plugins to be ran against the security hive
+software -- List of the plugins to be ran against the software hive
+system -- List of the plugins to be ran against the system hive
+default -- List of the plugins to be ran against the default hive. The default hive is the default ntuser.dat that each user gets. Sometimes there is interesting things in this hive.
+
+Each file will contain those plugins that need to be ran per the hive type. Create the file and then add the plugin name to the file. One plugin name per line. For example, the system file should contain a plugin called compname.pl. You need to add compname to the system file. Make sure not to put the .pl in the name.
+
+The easy way to compile your list files:
+1) cd plugins  {regripper plugin directory}
+2) grep "my %config = (hive"  *.pl | grep -i {hive type from above list} | cut -d. -f1 > {hive type from above list}
+2a) Examples: 
+	grep "my %config = (hive"  *.pl | grep -i system | cut -d. -f1 > system
+	grep "my %config = (hive"  *.pl | grep -i ntuser | cut -d. -f1 > ntuser
+	grep "my %config = (hive"  *.pl | grep -i ntuser | cut -d. -f1 > default
+	grep "my %config = (hive"  *.pl | grep -i sam | cut -d. -f1 > sam 
+	grep "my %config = (hive"  *.pl | grep -i security | cut -d. -f1 > security
+	grep "my %config = (hive"  *.pl | grep -i software | cut -d. -f1 > software
+3) Need to create the all file
+3a) cat ntuser sam security software system > all
+3b) grep "my %config = (hive"  *.pl | grep -i all | cut -d. -f1 >> all
+
+Note: Any time you add new plugins or update Regripper you should redo your plugin list files.
+
+===========================================================================
+= Joachim Metz's Tools							  =
+===========================================================================
+
+So far I have been happy using Joachim Metz's tools available @ http://code.google.com/u/joachim.metz@gmail.com/. Happy enough to start building
+FATE around them. Keep up the great work!
+
+libvshadow
+1) mkdir libvshadow
+2) Download the most recent version at: https://googledrive.com/host/0B3fBvzttpiiSZDZXRFVMdnZCeHc/
+3) cd libbshadow-20130509
+4) ./configure  --enable-shared  --enable-static  --enable-wide-character-type  --enable-multi-threading-support  --enable-static-executables   --enable-python
+5) cd libcstring
+6) make && make install
+
+========== NO GOOD ===================================================================
+libcerror
+1) mkdir libcerror
+2) Download the most recent version at: https://googledrive.com/host/0B3fBvzttpiiSV2xnMTZjSk5WVTg/
+3) cd libcerror-20130609
+4) ./configure  --enable-shared  --enable-static --enable-wide-character-type
+5) make && make install
+
+libcdata
+1) mkdir libcdata
+2) Download the most recent version at: https://googledrive.com/host/0B3fBvzttpiiSRzFtamhtVUlwYm8/
+3) cd libcdata-20130407
+4) ./configure   --enable-shared  --enable-static --enable-wide-character-type
+5) make && make install
+
+libclocale
+1) mkdir libclocale
+2) Download the most recent version at: https://googledrive.com/host/0B3fBvzttpiiSNVJabTctdi1qblE/
+3) cd libclocale-20130609
+4) ./configure   --enable-shared  --enable-static --enable-wide-character-type
+5) make && make install
+
+libcnotify
+1) mkdir libcnotify
+2) Download the most recent version at: https://googledrive.com/host/0B3fBvzttpiiSb0xsMGNocEtGUjQ/
+3) cd libcnotify-20130609
+4) ./configure   --enable-shared  --enable-static --enable-wide-character-type
+5) make && make install
+
+libcsplit
+1) mkdir libcsplit
+2) Download the most recent version at: https://googledrive.com/host/0B3fBvzttpiiSeE44MVpGWnpNeVU/
+3) cd libcsplit-20130609
+4) ./configure   --enable-shared  --enable-static --enable-wide-character-type
+5) make && make install
+
+libcpath
+1) mkdir libcpath
+2) Download the most recent version at: https://googledrive.com/host/0B3fBvzttpiiSOGFVQUwtOHlEWjQ/
+3) cd libcpath-20130609
+4) ./configure   --enable-shared  --enable-static --enable-wide-character-type
+5) make && make install
+
+libuna
+1) mkdir libuna
+2) Download the most recent version at: https://googledrive.com/host/0B3fBvzttpiiSaXBjN1ZJVzVsbjQ/
+3) cd libuna-20130609
+4) ./configure   --enable-shared  --enable-static --enable-wide-character-type   --enable-static-executables
+5) make && make install
+DOESNT COMPILE RIGHT NOW
+
+libcfile
+1) mkdir libcfile
+2) Download the most recent version at: https://googledrive.com/host/0B3fBvzttpiiSem41RXpvQkIyZlU/
+3) cd libcfile-20130609
+4) ./configure   --enable-shared  --enable-static --enable-wide-character-type   --enable-static-executables
+5) make && make install
+
+libbfio
+1) mkdir libbfio
+2) Download the most recent version at: https://googledrive.com/host/0B3fBvzttpiiSTERGV3V4bnZ3dlk/
+3) cd libbfio-20130609     
+4) ./configure   --enable-shared  --enable-static --enable-wide-character-type   --enable-static-executables
+5) make && make install
+
+libcaes
+1) mkdir libcaes
+2) Download the most recent version at: https://googledrive.com/host/0B3fBvzttpiiSRzhrM2s3c1JnMkE/
+3) cd libcaes-20130331
+4) ./configure   --enable-shared  --enable-static --enable-wide-character-type   --enable-static-executables
+5) make && make install
+
+libcdatetime
+1) mkdir libcdatetime
+2) Download the most recent version at: https://googledrive.com/host/0B3fBvzttpiiSZmJKODlYaUoxamM/
+NOTHING TO DOWNLOAD YET
+
+libcthreads
+1) mkdir libcthreads
+2) Download the most recent version at: https://googledrive.com/host/0B3fBvzttpiiSdlBOeGZJeml1T1k/
+NOTHING TO DOWNLOAD YET
+
+libfcache
+1) mkdir libfcache
+2) Download the most recent version at: https://googledrive.com/host/0B3fBvzttpiiSd2Z2aGxVRXJLcU0/
+NOTHING TO DOWNLOAD YET
+
+libfdata
+1) mkdir libfdata
+2) Download the most recent version at: https://googledrive.com/host/0B3fBvzttpiiSQkZxeUplRFhPVHc/
+NOTHING TO DOWNLOAD YET
+
+libfdatetime
+1) mkdir libfdatetime
+2) Download the most recent version at: https://googledrive.com/host/0B3fBvzttpiiSQlBfaUlYTmhzUjQ/
+3) cd libfdatetime-20130317
+4) ./configure   --enable-shared  --enable-static 
+5) make && make install
+
+libfguid
+1) mkdir libfguid
+2) Download the most recent version at: https://googledrive.com/host/0B3fBvzttpiiSRXdGUVRlX2JQWk0/
+3) cd libfguid-20130317
+4) ./configure   --enable-shared  --enable-static 
+5) make && make install
+
+libfvalue
+1) mkdir libfvalue
+2) Download the most recent version at: https://googledrive.com/host/0B3fBvzttpiiSNGNYME1wT0FRRTg/
+NOTHING TO DOWNLOAD YET
+
+libhmac
+1) mkdir libhmac
+2) Download the most recent version at: https://googledrive.com/host/0B3fBvzttpiiSUmg3ekttWGhmeHc/
+3) cd libhmac-20130331
+4) ./configure   --enable-shared  --enable-static --enable-wide-character-type   --enable-static-executables
+5) make && make install
+Issue compiling
+
+libfcache
+1) mkdir libfcache
+2) Download the most recent version at: https://googledrive.com/host/0B3fBvzttpiiSd2Z2aGxVRXJLcU0/
+NOTHING TO DOWNLOAD YET
+
+libfdata
+1) mkdir libfdata
+2) Download the most recent version at: https://googledrive.com/host/0B3fBvzttpiiSQkZxeUplRFhPVHc/
+NOTHING TO DOWNLOAD YET
+
+========== NO GOOD ===================================================================
+
+libbde
+1) mkdir libbde
+2) Download the most recent version at: https://googledrive.com/host/0B3fBvzttpiiSX2VCRk16TnpDd0U/
+3) cd libbde-20130626
+4) ./configure   --enable-shared  --enable-static --enable-wide-character-type   --enable-static-executables --enable-python
+5) make && make install
+
+
+
+
+===========================================================================
+= Mounting Encase Images						  =
+===========================================================================
+Below are some examples of how to mount an encase image if you just want to run the plugins against it.
+
+Linux Example:
+1) mkdir ewf
+2) sudo ewfmount "TEST·0.E01" ./ewf
+   NOTE: This will create a raw dd image file that can be accessed via the ewf 
+   directory. To make it less confusing, I like to create a symbolic link shown 
+   in step 2a.
+2a) ln -s ewf ewf1.dd
+2) mount -t ntfs-3g -o loop,ro,nodev,noatime,show_sys_files,streams_interface=windows,offset=32256 /export/Images/ewf1.dd /export/Images/drive
+
+OSX Example:
+1) mkdir ewf
+2) sudo ewfmount "TEST·0.E01" ./ewf
+   NOTE: This will create a raw dd image file under the directory ewf called
+   ewf1. 
+   IMPORTANT NOTE: OSX seems to be a bit slow with regards to ewfmount. What
+   happens is the directory (i.e. ewf from step 2) you gave it will disappear
+   as it processes the encase file(s). At some point the directory will 
+   reappear with the raw dd iamge file in it. Once that happens, you can continue
+   on to step 3. 
+3) hdiutil attach -imagekey diskimage-class=CRawDiskImage -nomount {raw dd file} 
+   NOTE: This will list out the available partitions. Example below:
+   # hdiutil attach -imagekey diskimage-class=CRawDiskImage -nomount /mnt/ewf/ewf1
+   /dev/disk3              FDisk_partition_scheme         
+   /dev/disk3s1            Windows_NTFS                   
+   /dev/disk3s2            Windows_NTFS    
+4) mount -t ntfs  -o ro,nodev,noatime  /dev/disk3s1  /mnt/drive
+5 Optional) Install XQuartz if you ever wish to use the GUI to Log2Timeline. Note XQuartz is not needed for this program. Site is at http://xquartz.macosforge.org
+
+
+
+===========================================================================
+= Future Notes								  =
+===========================================================================
+Ignore below for now.
+
+
+Apache SOLR
+1) wget http://apache.mirrors.lucidnetworks.net/lucene/solr/3.6.1/apache-solr-3.6.1.tgz
+2) tar zxvf apache-solr-3.6.1.tgz
+
+
+AUTOPSY 2
+1) wget http://sourceforge.net/projects/autopsy/files/latest/download?source=files
+2) tar zxvf autopsy-2.24.tar.gz
+3) cd autopsy-2.24
+4) make
+
+
+

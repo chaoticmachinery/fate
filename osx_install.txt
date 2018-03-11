@@ -1,0 +1,40 @@
+mount_nfs -P  -o vers=4 172.16.13.177:/export /mnt/asus 
+
+Perl Modules needed. 
+
+To install become root and type the command on the cmd line.
+1) sudo su -
+2) Next type each line below and wait for it to download, compile and install
+
+cpan Benchmark
+cpan Config::Tiny
+cpan Digest::MD5 
+cpan Encode
+cpan Getopt::Long
+cpan Net::SMTP
+cpan Net::SMTP::TLS
+cpan Pod::Usage
+cpan Switch
+
+
+Install Fuse
+1) brew install fuse4x
+2) brew install fuse4x-kext
+
+
+
+Install aff
+
+
+
+
+
+
+#Not needed for AFG but good idea install
+Install ssdeep
+1) brew install ssdeep
+
+Install Testdisk
+1) brew install testdisk
+
+
