@@ -110,7 +110,7 @@ sub testfile {
         $type =~ s/[^a-zA-Z0-9\.\\,]//g;
         $type = lc $type;
         print "File: $srchfile Type: $type\n";
-        if ($type =~ /SYSTEM/) {
+        if ($type =~ /system/) {
         	$regtype = "system";
         }
         if ($type =~ /\\appCompat\\programs\\amcache\.hve/) {
