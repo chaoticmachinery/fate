@@ -10,7 +10,7 @@ use Cwd;
 use Switch;
 use Getopt::Long;
 use Config::Tiny;
-use File::Path qw(make_path);;
+use File::Path qw(make_path);
 use threads;
 use threads::shared;
 use Thread::Queue;
