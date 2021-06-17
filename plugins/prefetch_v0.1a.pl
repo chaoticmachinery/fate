@@ -2,22 +2,22 @@
 #===================================================================================
 # Written by: Keven Murphy
 #
-# Used for mass triage of systems, the script will parse the bitsadmin ESE db (win10) and present
-# the output in a json format. This allows for easy frequency analysis.
+# Used for mass triage of systems, the script will parse the prefetch files and present
+# the output in a csv format. This allows for easy frequency analysis.
 #
 #
 # Requirements:
-# BitsParser.py (https://github.com/fireeye/BitsParser)
+# 
 #
 # Author Notes:
-# 1) See only the uniq lines: (head -n1 wmi.csv && tail -n +2 wmi.csv | sort -u) > {filename}
-# 2) To see only the uniq lines without the source file path: (head -n1 wmi.csv && cut -d\| -f1-7 wmi.csv | sort -u) > {filename}
+#
 #
 # Mod Log:
 #===================================================================================
 #use warnings;
 use File::Find;
 use File::Copy;
+use File::Spec;
 use File::Basename;
 use Digest::MD5 qw(md5_hex);
 use Cwd 'abs_path';
@@ -37,34 +37,34 @@ my @fileslistkeys;
 my %filelisthash;
 my $flcnt = 0;
 my $process_q = Thread::Queue -> new();
-my $verbose = 1;
+my $verbose = 0;
 
 
 #=============================================================================================
 # mft_process
 #=============================================================================================
-sub bits_process{
-    my ($bitsfiletmp) = @_;
-    $cleanfile = $bitsfiletmp->{file};
+sub prefetch_process{
+    my ($prefetchfiletmp) = @_;
+	
+    $cleanfile = $prefetchfiletmp->{file};
 
-    #print "$bitsfiles[0]->{filename}\n";
-    #print "$bitsfiles[0]->{file}\n";
-    #print "$bitsfiles[0]->{dir}\n";
-
+    #print "$prefetchfiles[0]->{filename}\n";
+    #print "$prefetchfiles[0]->{file}\n";
+    #print "$prefetchfiles[0]->{dir}\n";
     
     my $mntfile = "\"".addslash($filelisthash{$file}).$file."\"";
     $mntfile =~ s/\$/\\\$/g;
 
     #Create the output directory
-    $tmpcreatedir = addslash($bitsfiletmp->{dir});
+    $tmpcreatedir = addslash($prefetchfiletmp->{dir});
     #$tmpcreatedir =~ s/^..//;   #Strip off the 1st 2 characters i.e. "./"
     $createdir = addslash($savedir).$tmpcreatedir;
     make_path($createdir, {verbose => 1});
-    $createdir = addslash($createdir).$bitsfiletmp->{filename};
+    $createdir = addslash($createdir).$prefetchfiletmp->{filename};
     
-    my $tmpanalyzemftopts = $bitsparseropts;
-    $tmpanalyzemftopts =~ s/OUTPUT/\"$createdir.json\"/g;
-    $tmpanalyzemftopts =~ s/INPUT/\"$bitsfiletmp->{file}\"/g;   
+    my $tmpanalyzemftopts = $prefetchparseropts;
+    $tmpanalyzemftopts =~ s/\<OUTPUT\>/\"$createdir.csv\"/g;
+    $tmpanalyzemftopts =~ s/\<INPUT\>/\"$prefetchfiletmp->{file}\"/g;   
     my $options = $tmpanalyzemftopts;
     $cleanfile =~ s/\$//g;
     #print "CF: $cleanfile\n";
@@ -72,11 +72,11 @@ sub bits_process{
     #print "OPTIONS: $options\n";
     #print "SD: $savedir\n";
     
-    print "CMD: $bitsparser $options \n" if $verbose;
+    print "CMD: $prefetchparser $options \n" if $verbose;
 
     print "\n\n";
     
-    open DATA, "$bitsparser $options |"   or die "Couldn't execute program: $!";
+    open DATA, "$prefetchparser $options |"   or die "Couldn't execute program: $!";
     while ( defined( my $line = <DATA> )  ) {
       chomp($line);
       print "$line\n";
@@ -93,9 +93,11 @@ sub bits_process{
 sub addslash {
     my ($path) = @_;
 
+    my $sep = File::Spec->catfile('', '');
+
     my $lastchar =  substr($path,length($path)-1,1);
-    if ($lastchar ne "/") {
-	   $path .= "/";
+    if ($lastchar ne $sep) {
+	   $path .= $sep;
     }
 
     return($path);
@@ -108,13 +110,13 @@ sub addslash {
 sub threadprocess2 {
 
     #my ($fn) = @_;
-    #print "$bitsfiles[0]->{dir}\n";
+    #print "$prefetchfiles[0]->{dir}\n";
     
     my $cnt = 0;
     my $left = 0;
     my $pausecnt = 0;
     
-    foreach my $bitfiletmp (@bitsfiles) {    
+    foreach my $bitfiletmp (@prefetchfiles) {    
       $process_q -> enqueue ( $bitfiletmp );
     }
     $process_q -> end();
@@ -149,14 +151,14 @@ sub threadprocess2 {
 }
 
 sub worker {
-  while ( my $bitsfiletmp = $process_q -> dequeue() )
+  while ( my $prefetchfiletmp = $process_q -> dequeue() )
   {
-    chomp ( $bitsfiletmp->{file} );
+    chomp ( $prefetchfiletmp->{file} );
     
-    print "\tThread " .threads -> self() -> tid(). ": Reviewing $bitsfiletmp->{file}\n";
+    print "\tThread " .threads -> self() -> tid(). ": Reviewing $prefetchfiletmp->{file}\n";
     
     eval {
-       bits_process($bitsfiletmp);
+       prefetch_process($prefetchfiletmp);
     };
     if ($process_q ->pending() ne "") {
         print "Number of files left to review: ".$process_q ->pending()."\n";
@@ -176,19 +178,30 @@ sub process {
 #    * ·        $File::Find::name contains $File::Find::dir/$_
 
      my $orglog = "";
-   
+     my $type0,$type1 = 0;
      my($tmptype) = "";
-     open(FILE, $_) or die("Error reading file, stopped");
-     read(FILE, $tmptype, 8);
-     my ($ignore,$type) = unpack 'H8 H*', $tmptype;
-     
+	 my $sep = File::Spec->catfile('', '');
+	 
+	 print "File: $_ \n";
+	 eval { 
+        open(FILE, $_) or die("Error reading file, stopped");
+        read(FILE, $tmptype, 8);
+        ($type0,$type1) = unpack 'H8 H*', $tmptype;
+        close(FILE);
+     };
+     #print "T: $type0 $type1\n";
      #Check the file sig to see if it matches.
-     if ($type eq "efcdab89") {
-       push(@bitsfiles, { filename=>$_, file=>$File::Find::name ,dir=>$File::Find::dir });
-       push(@bitsdir, $File::Find::dir);
-     }
+     if ($type1 eq "53434341" || $type0 eq "4d414d04") {
+		 
+       my $goodfile = File::Spec->catfile( $File::Find::dir, $_ );
+		 
+       #push(@prefetchfiles, { filename=>$_, file=>$File::Find::name ,dir=>$File::Find::dir });
+	   push(@prefetchfiles, { filename=>$_, file=>$goodfile ,dir=>$File::Find::dir });
+       push(@prefetchdir, $File::Find::dir);
+     }  # else {
+     #  print "Bad file: $_\n";
+     #}
      
-     close(FILE);
      
 }
 #=============================================================================================
@@ -222,12 +235,12 @@ if ($config eq ""){
 
 my $Config = Config::Tiny->read( $config );
 if (defined $config) {
-    $savedirconfig=$Config->{bitsadmin}->{savedir};
+    $savedirconfig=$Config->{prefetch}->{savedir};
     $driveconfig=$Config->{default}->{drive};
-    $bitsparser=$Config->{bitsadmin}->{bitsparser};
-    $bitsparseropts=$Config->{bitsadmin}->{options};
-    $threadapp=$Config->{bitsadmin}->{thread};
-    $maxthread=$Config->{bitsadmin}->{maxthread};
+    $prefetchparser=$Config->{prefetch}->{prefetchparser};
+    $prefetchparseropts=$Config->{prefetch}->{options};
+    $threadapp=$Config->{prefetch}->{thread};
+    $maxthread=$Config->{prefetch}->{maxthread};
   } else {
     print "Need a working config.ini file.\n";
     exit 1;
@@ -247,8 +260,8 @@ $savedir = $dircwd . "/" . $savedirconfig;
 $dir = $dircwd;
 $mftfilename = $dir."/\$MFT";
 $md5logfilename =  $savedir . "/md5log";
-print "Reviewing mount point for qmgr.db files: $mntdrive\n";
-print "Saving bitsadmin output file to: $savedir\n";
+print "Reviewing mount point for prefetch files: $mntdrive\n";
+print "Saving prefetch output file to: $savedir\n";
 print "Config File Used: $config\n";
 print "Note: This plugin will recreate the directory structure in the save directory for any processed file.\n";
 #chdir($dir) or die "Cannot change directory to $dir -- Error: $!";
@@ -262,26 +275,26 @@ unless(-e $savedir or mkdir $savedir) {
 #=============================================================================================
 # Start of plugin code
 #=============================================================================================
-@bitsfiles;
-@bitsdir;
+@prefetchfiles;
+@prefetchdir;
 
-print "Searchng for qmgr.db files.\n";
+print "Searchng for prefetch files.\n";
 find({ wanted => \&process, follow => 1}, $mntdrive);
-$bitsfilesnum = $#bitsfiles+1;
-print "\tNumber of qmgr.db files found: $bitsfilesnum\n";
+$prefetchfilesnum = $#prefetchfiles+1;
+print "\tNumber of prefetch files found: $prefetchfilesnum\n";
 print "Processing Files....\n";
 
 threadprocess2;
 
 __END__
 
-=head1 bitsadmin_win10.pl
+=head1 prefetch_v0.1.pl
 
 Image device
 
 =head1 SYNOPSIS
 
-bitsadmin_win10.pl [options] [file ...]
+prefetch_v0.1.pl [options] [file ...]
 
 Options:
 
@@ -290,6 +303,8 @@ Options:
 --help       Brief help message
 
 --man        Full documentation
+
+Note: Any prefetch file found invalid (due to ??) will still have an output file. The output file will contain "Not a valid prefetch file" wording in it.
 
 =head1 OPTIONS
 
@@ -313,5 +328,6 @@ Prints the manual page and exits.
 
 =head1 DESCRIPTION
 
-B<bitsadmin_win10.pl> Will look for the CIM (WMI) files and pass them to the Bits Parser. 
+B<prefetch_v0.1.pl> will look for the prefetch files. Once found the files will be passed to the prefetch parser.
+Note: Any prefetch file found invalid (due to ??) will still have an output file. The output file will contain "Not a valid prefetch file" wording in it.
 =cut
