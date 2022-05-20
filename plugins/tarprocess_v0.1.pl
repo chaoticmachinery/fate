@@ -17,7 +17,7 @@ use Thread::Queue;
 use Encode;
 use Pod::Usage;
 
-$version = "0.5";
+$version = "0.1";
 my @fileslistkeys;
 my %filelisthash;
 my $flcnt = 0;
@@ -26,7 +26,7 @@ my $verbose = 1;
 
 
 #=============================================================================================
-# mft_process
+# tar_process
 #=============================================================================================
 sub tar_process{
     my ($file) = @_;
@@ -200,8 +200,6 @@ chomp($dircwd);
 $savedir = $dircwd . "/" . $savedirconfig;
 
 $dir = $dircwd;
-$mftfilename = $dir."/\$MFT";
-$md5logfilename =  $savedir . "/md5log";
 print "Reviewing mount point for tar files: $mntdrive\n";
 print "Saving tardetails output file to: $savedir\n";
 print "Config File Used: $config\n";
@@ -217,8 +215,7 @@ unless(-e $savedir or mkdir $savedir) {
 #=============================================================================================
 
 
-#Find the MFT
-#find(\&process, $mntdrive);
+#Find the tar files
 print "Searchng for "+$processfile+" tar files.\n";
 find({ wanted => \&process, follow => 1}, $mntdrive);
 print "\tNumber of "+$processfile+" files found: $flcnt\n";
