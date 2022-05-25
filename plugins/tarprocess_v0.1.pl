@@ -16,6 +16,7 @@ use threads::shared;
 use Thread::Queue;
 use Encode;
 use Pod::Usage;
+use File::Spec;
 
 $version = "0.1";
 my @fileslistkeys;
@@ -142,7 +143,7 @@ sub process {
      my($type) = "";
 
      if ($_ eq $processfile) {
-	    $filelistkeys[$flcnt] = $File::Find::name;
+        $filelistkeys[$flcnt] = $File::Find::name;
         $flcnt++;
      }  
 }
@@ -217,7 +218,9 @@ unless(-e $savedir or mkdir $savedir) {
 
 #Find the tar files
 print "Searchng for "+$processfile+" tar files.\n";
-find({ wanted => \&process, follow => 1}, $mntdrive);
+my $ap = abs_path($mntdrive);
+#find({ wanted => \&process, follow => 1}, $mntdrive);
+find({ wanted => \&process, follow => 1}, $ap);
 print "\tNumber of "+$processfile+" files found: $flcnt\n";
 print "Processing Files....\n";
 chdir($savedir);
